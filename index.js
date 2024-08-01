@@ -98,3 +98,30 @@ app.get('/api/v1/getAccessToken', async (req, res) => {
 app.listen(3000, () => {
     console.log("Server running on port 3000");
 });
+
+app.get('/api/v1/getUserData', (req, res) => {
+    const token = req.body.token;
+    const secret_key = process.env.SECRET_KEY;
+
+    let payload; 
+    try {
+        payload = jwt.verify(token, secret_key)
+        if (payload.exp > timestamp.now()) {
+            sendData();
+        } else {
+            res.send({
+                code: "419 Access Token Expired",
+                message: "Access token is expired. Regain access to resource by getting a new access token."
+            })
+        }
+    } catch (err) {
+        res.send({
+            code: "401 UNAUTHORIZED",
+            message: "Unauthorized access to resource."
+        })
+    }
+
+    function sendData() {
+        
+    }
+})
