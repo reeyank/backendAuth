@@ -3,17 +3,22 @@ const prisma = new PrismaClient()
 
 const express = require('express');
 const app = express();
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
+const timestamp = require('unix-timestamp');
+timestamp.round = true;
 
 app.use(express.urlencoded({ extended: true   
 }));
 
 
-app.post('/', async (req, res) => {
+app.post('/api/v1/createUser', async (req, res) => {
     if (req.body.first_name == null) {
         res.send({
             code: "MISSING_FIELD_REQURED",
             message: "The 'first_name' field is required."
         })
+        return;
     }
 
     if (req.body.email_address == null) {
@@ -21,7 +26,19 @@ app.post('/', async (req, res) => {
             code: "MISSING_FIELD_REQURED",
             message: "The 'email_address' field is required."
         })
+        return;
     }
+
+    if (req.body.password == null) {
+        res.send({
+            code: "MISSING_FIELD_REQURED",
+            message: "The 'password' field is required."
+        })
+        return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(req.body.password, salt);
 
     try {
         await prisma.userInfo.create({
@@ -29,6 +46,8 @@ app.post('/', async (req, res) => {
                 first_name: req.body.first_name,
                 last_name: req.body.last_name,
                 email_address: req.body.email_address,
+                password_hash: hash,
+                salt: salt
             }
         })
     } catch (err) {
@@ -37,16 +56,45 @@ app.post('/', async (req, res) => {
                 code: "409 Conflict",
                 message: "The user with the email address: " + req.body.email_address + " already exists."
             })
+            return;
         }
     }
 
-    // res.send({
-    //     code: "200 OK",
-    //     message: "User created successfully."
-    // })
+    res.send({
+        code: "200 OK",
+        message: "User created successfully."
+    })
 });
 
+app.get('/api/v1/getAccessToken', async (req, res) => {
+    const {email_address, password} = req.body;
+    const secret_key = process.env.SECRET_KEY;
+
+    const userInfo = await prisma.userInfo.findUnique({
+        where: {
+            email_address: email_address,
+        },
+    })
+
+    const hash = await bcrypt.hash(password, userInfo.salt);
+    if (userInfo.password_hash === hash) {
+        const token = jwt.sign({
+            sub: process.env.ORG,
+            userId: userInfo.id,
+            iat: timestamp.now(),
+            exp: timestamp.add(timestamp.now(), "+5m")
+        }, secret_key)
+
+        res.send({token});
+    } else {
+        res.send({
+            code: "401 UNAUTHORIZED",
+            message: "Unauthorized access to resource."
+        })
+    }
+
+});
 
 app.listen(3000, () => {
     console.log("Server running on port 3000");
-   });
+});

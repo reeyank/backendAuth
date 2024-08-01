@@ -10,8 +10,10 @@ datasource db {
 model userInfo {
   id            Int      @id @default(autoincrement())
   created_at    DateTime @default(now()) @db.Timestamp(6)
-  last_updated  DateTime @default(now()) @db.Timetz(6)
+  last_updated  DateTime @default(now()) @db.Timestamp(6)
   first_name    String
   last_name     String?
-  email_address String
+  email_address String   @unique(map: "userInfo_index_2")
+  password_hash String   @db.VarChar(128)
+  salt          String   @db.VarChar(32)
 }
