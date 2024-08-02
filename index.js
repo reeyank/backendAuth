@@ -5,11 +5,12 @@ const express = require('express');
 const app = express();
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
+const password = require('generate-password')
+
 const timestamp = require('unix-timestamp');
 timestamp.round = true;
 
-app.use(express.urlencoded({ extended: true   
-}));
+app.use(express.urlencoded({ extended: true }));
 
 
 app.post('/api/v1/createUser', async (req, res) => {
@@ -41,13 +42,23 @@ app.post('/api/v1/createUser', async (req, res) => {
     const hash = await bcrypt.hash(req.body.password, salt);
 
     try {
-        await prisma.userInfo.create({
+        let newUser = await prisma.userInfo.create({
             data: {
                 first_name: req.body.first_name,
                 last_name: req.body.last_name,
                 email_address: req.body.email_address,
                 password_hash: hash,
                 salt: salt
+            }
+        })
+
+        await prisma.refresh_token.create({
+            data: {
+                userId: newUser.id,
+                refresh_token: password.generate({
+                    numbers: true,
+                    length: 95
+                })
             }
         })
     } catch (err) {
@@ -58,6 +69,7 @@ app.post('/api/v1/createUser', async (req, res) => {
             })
             return;
         }
+        console.log(err);
     }
 
     res.send({
@@ -85,7 +97,17 @@ app.get('/api/v1/getAccessToken', async (req, res) => {
             exp: timestamp.add(timestamp.now(), "+5m")
         }, secret_key)
 
-        res.send({token});
+        let refresh_token = await prisma.refresh_token.findFirst({
+            where: {
+                userId: userInfo.id
+            },
+            select: {
+                refresh_token: true
+            }
+        })
+        refresh_token = refresh_token.refresh_token
+
+        res.send({token, refresh_token});
     } else {
         res.send({
             code: "401 UNAUTHORIZED",
@@ -93,10 +115,6 @@ app.get('/api/v1/getAccessToken', async (req, res) => {
         })
     }
 
-});
-
-app.listen(3000, () => {
-    console.log("Server running on port 3000");
 });
 
 app.get('/api/v1/getUserData', (req, res) => {
@@ -125,3 +143,63 @@ app.get('/api/v1/getUserData', (req, res) => {
         
     }
 })
+
+app.get('/api/v1/getNewToken', async (req, res) => {
+    const token = req.body.token;
+    const refresh_token = req.body.refresh_token;
+    const secret_key = process.env.SECRET_KEY;
+    
+    const userInfo = await prisma.userInfo.findUnique({
+        where: {
+            id: jwt.decode(token).userId
+        },
+    })
+
+    const dbRefresh = await prisma.refresh_token.findUnique({
+        where: {
+            userId: userInfo.id
+        },
+        select: {
+            refresh_token: true
+        }
+    })
+
+    let payload;
+    try {
+        payload = jwt.verify(token, secret_key)
+        if (payload.exp > timestamp.now()) {
+            res.send({token})
+        }
+    } catch (err) {
+        if (err == "JsonWebTokenError: invalid signature") {
+            res.send({
+                code: "401 UNAUTHORIZED",
+                message: "Unauthorized access to resource."
+            })
+        }
+
+        if (err == "TokenExpiredError: jwt expired") {
+            if (dbRefresh.refresh_token == refresh_token) {
+                res.send({
+                    token: jwt.sign({
+                        sub: process.env.ORG,
+                        userId: userInfo.id,
+                        iat: timestamp.now(),
+                        exp: timestamp.add(timestamp.now(), "+5m")
+                    }, secret_key)
+                })
+            } else {
+                res.send({
+                    code: "401 UNAUTHORIZED",
+                    message: "The provided refresh token is not valid."
+                })
+            }
+        }
+    }
+
+})
+
+
+app.listen(3000, () => {
+    console.log("Server running on port 3000");
+});
