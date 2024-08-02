@@ -12,6 +12,12 @@ timestamp.round = true;
 
 app.use(express.urlencoded({ extended: true }));
 
+function genPass() {
+    return password.generate({
+        numbers: true,
+        length: 95
+    });
+}
 
 app.post('/api/v1/createUser', async (req, res) => {
     if (req.body.first_name == null) {
@@ -55,10 +61,7 @@ app.post('/api/v1/createUser', async (req, res) => {
         await prisma.refresh_token.create({
             data: {
                 userId: newUser.id,
-                refresh_token: password.generate({
-                    numbers: true,
-                    length: 95
-                })
+                refresh_token: genPass()
             }
         })
     } catch (err) {
@@ -180,13 +183,29 @@ app.get('/api/v1/getNewToken', async (req, res) => {
 
         if (err == "TokenExpiredError: jwt expired") {
             if (dbRefresh.refresh_token == refresh_token) {
+                const newRefresh = genPass();
+
+                try {
+                    await prisma.refresh_token.update({
+                        where: {
+                            userId: userInfo.id
+                        },
+                        data: {
+                            refresh_token: newRefresh
+                        }
+                    })
+                } catch (err) {
+                    console.log(err)
+                }
+
                 res.send({
                     token: jwt.sign({
                         sub: process.env.ORG,
                         userId: userInfo.id,
                         iat: timestamp.now(),
                         exp: timestamp.add(timestamp.now(), "+5m")
-                    }, secret_key)
+                    }, secret_key),
+                    refresh_token: newRefresh
                 })
             } else {
                 res.send({
@@ -198,7 +217,6 @@ app.get('/api/v1/getNewToken', async (req, res) => {
     }
 
 })
-
 
 app.listen(3000, () => {
     console.log("Server running on port 3000");
