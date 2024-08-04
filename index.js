@@ -7,6 +7,12 @@ const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const password = require('generate-password')
 
+const Mailgun = require('mailgun-js');
+const mailgun = new Mailgun({
+    apiKey: process.env.EMAIL_API,
+    domain: process.env.EMAIL_DOMAIN
+})
+
 const timestamp = require('unix-timestamp');
 timestamp.round = true;
 
@@ -15,7 +21,8 @@ app.use(express.urlencoded({ extended: true }));
 function genPass() {
     return password.generate({
         numbers: true,
-        length: 95
+        length: 95,
+        uppercase: false
     });
 }
 
@@ -58,12 +65,43 @@ app.post('/api/v1/createUser', async (req, res) => {
             }
         })
 
+        let code = password.generate({
+            length: 6,
+            numbers: true
+        })
+
         await prisma.refresh_token.create({
             data: {
                 userId: newUser.id,
                 refresh_token: genPass()
             }
         })
+
+        var expireTime = new Date(timestamp.duration("+5m")).toISOString();
+
+        if (process.env.EMAIL_VERIFICATION == true) {
+            await prisma.email_verification.create({
+                data: {
+                    id: newUser.id,
+                    code: code,
+                    expireTimestamp: expireTime
+                }
+            })
+        }
+
+        var data = {
+            from: "reeyan@fantasyfinance.email",
+            to: req.body.email_address,
+            subject: 'One time verification code from ' + process.env.ORG,
+            text: 'The verification code is: ' + code + ". DO NOT SHARE THIS CODE WITH ANYONE. This code will be valid for 5 minutes."
+            };
+        
+        mailgun.messages().send(data, function (err, body) {
+            //If there is an error, render the error page
+            if (err) {
+                console.log(err);
+            }
+        });
     } catch (err) {
         if (err.code == "P2002") {
             res.send({
@@ -217,6 +255,60 @@ app.get('/api/v1/getNewToken', async (req, res) => {
     }
 
 })
+
+if (process.env.EMAIL_VERIFICATION == "TRUE") {
+    app.post('/api/v1/verifyEmail', async (req, res) => {
+        const code = req.body.code;
+        const email_address = req.body.email_address;
+
+        try {
+            const user = await prisma.userInfo.findUnique({
+                where: {
+                    email_address: email_address
+                }
+            })
+
+            const dbCode = await prisma.email_verification.findUnique({
+                where: {
+                    id: user.id
+                }
+            })
+
+            if (dbCode.code == code) {
+                if (dbCode.verified == true) {
+                    res.status(402).send({
+                        code: "404 ALREADY VERIFIED",
+                        message: "The provided email address has already been verified."
+                    })
+                } else {
+                    await prisma.email_verification.update({
+                        where: {
+                            id: user.id
+                        },
+                        data: {
+                            verified: true
+                        }
+                    })
+                    res.send({
+                        code: "200 OK",
+                        message: "The email address has been verified."
+                    })
+                }
+            } else {
+                res.send({
+                    code: "400 WRONG CODE",
+                    message: "The code provided is wrong. Please provide the correct code to verify the email address."
+                })
+            }
+        } catch (err) {
+            res.status(404).send({
+                code: "404 INCOMPLETE INFO",
+                message: "Please provide both the code and the email adress."
+            })
+            console.log(err)
+        }
+    })
+}
 
 app.listen(3000, () => {
     console.log("Server running on port 3000");

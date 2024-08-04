@@ -8,15 +8,16 @@ datasource db {
 }
 
 model userInfo {
-  id            Int            @id @default(autoincrement())
-  created_at    DateTime       @default(now()) @db.Timestamp(6)
-  last_updated  DateTime       @default(now()) @db.Timestamp(6)
-  first_name    String
-  last_name     String?
-  email_address String         @unique(map: "userInfo_index_2")
-  password_hash String         @db.VarChar(128)
-  salt          String         @db.VarChar(32)
-  refresh_token refresh_token?
+  id                 Int                 @id @default(autoincrement())
+  created_at         DateTime            @default(now()) @db.Timestamp(6)
+  last_updated       DateTime            @default(now()) @db.Timestamp(6)
+  first_name         String
+  last_name          String?
+  email_address      String              @unique(map: "userInfo_index_2")
+  password_hash      String              @db.VarChar(128)
+  salt               String              @db.VarChar(32)
+  email_verification email_verification?
+  refresh_token      refresh_token?
 }
 
 model refresh_token {
@@ -25,4 +26,13 @@ model refresh_token {
   updated_at    DateTime @default(now()) @db.Timestamp(6)
   refresh_token String
   userInfo      userInfo @relation(fields: [userId], references: [id], onDelete: Cascade, map: "refresh_token_relation_1")
+}
+
+model email_verification {
+  id              Int      @id @default(autoincrement())
+  created_at      DateTime @default(now()) @db.Timestamp(6)
+  code            String   @db.VarChar(255)
+  expireTimestamp DateTime @db.Timestamp(6)
+  verified        Boolean  @default(false)
+  userInfo        userInfo @relation(fields: [id], references: [id], onDelete: Cascade, map: "email_verification_relation_1")
 }
