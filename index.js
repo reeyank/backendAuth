@@ -2,10 +2,43 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient()
 
 const express = require('express');
+const cors = require('cors')
 const app = express();
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const password = require('generate-password')
+const http = require('http');
+const WebSocket = require('ws');
+
+app.use(cors());
+
+
+const fs = require('fs')
+
+const server = http.createServer(function(req, res) {
+    fs.readFile('/Users/reeyank/Desktop/onGoingProjects/backendAuth/index.html', (err, data) => {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(data);
+      });
+});
+
+const wss = new WebSocket.Server({ server });
+
+server.listen(8081);
+
+wss.on('connection', (ws) => {
+    console.log('Client connected');
+  
+    ws.on('message', (message) => {
+      console.log(`Received message: ${message}`);
+  
+      // Handle incoming message
+    });
+  
+    ws.on('close', () => {
+      console.log('Client disconnected');
+    });
+});
 
 const Mailgun = require('mailgun-js');
 const mailgun = new Mailgun({
