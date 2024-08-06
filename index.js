@@ -59,7 +59,7 @@ function genPass() {
     });
 }
 
-app.post('/api/v1/createUser', async (req, res) => {
+app.post('/v1/createUser', async (req, res) => {
     if (req.body.first_name == null) {
         res.send({
             code: "MISSING_FIELD_REQURED",
@@ -152,7 +152,7 @@ app.post('/api/v1/createUser', async (req, res) => {
     })
 });
 
-app.get('/api/v1/getAccessToken', async (req, res) => {
+app.get('/v1/getAccessToken', async (req, res) => {
     const {email_address, password} = req.body;
     const secret_key = process.env.SECRET_KEY;
 
@@ -191,7 +191,7 @@ app.get('/api/v1/getAccessToken', async (req, res) => {
 
 });
 
-app.get('/api/v1/getUserData', (req, res) => {
+app.get('/v1/getUserData', (req, res) => {
     const token = req.body.token;
     const secret_key = process.env.SECRET_KEY;
 
@@ -218,7 +218,7 @@ app.get('/api/v1/getUserData', (req, res) => {
     }
 })
 
-app.get('/api/v1/getNewToken', async (req, res) => {
+app.get('/v1/getNewToken', async (req, res) => {
     const token = req.body.token;
     const refresh_token = req.body.refresh_token;
     const secret_key = process.env.SECRET_KEY;
@@ -290,7 +290,7 @@ app.get('/api/v1/getNewToken', async (req, res) => {
 })
 
 if (process.env.EMAIL_VERIFICATION == "TRUE") {
-    app.post('/api/v1/verifyEmail', async (req, res) => {
+    app.post('/v1/verifyEmail', async (req, res) => {
         const code = req.body.code;
         const email_address = req.body.email_address;
 
