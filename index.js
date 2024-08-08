@@ -24,7 +24,7 @@ const server = http.createServer(function(req, res) {
 
 const wss = new WebSocket.Server({ server });
 
-server.listen(8081);
+server.listen(5000);
 
 wss.on('connection', (ws) => {
     ws.on('error', console.error);
