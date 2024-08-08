@@ -8,39 +8,35 @@ const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const password = require('generate-password')
 const http = require('http');
-const WebSocket = require('ws');
 
 app.use(cors());
 
+const WebSocket = require('ws');
 
-const fs = require('fs')
+const wss = new WebSocket.Server({ port: 5000 });
 
-const server = http.createServer(function(req, res) {
-    fs.readFile('/Users/reeyank/Desktop/onGoingProjects/backendAuth/index.html', (err, data) => {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(data);
-      });
+wss.on('connection', 
+ (ws) => {
+  console.log('Client connected');
+
+  ws.on('message', (message) => {
+    console.log(`Received message: ${message}`); 
+
+    // Broadcast the message to all connected clients
+    wss.clients.forEach((client) => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(message); 
+
+      }
+    });
+  });
+
+  ws.on('close', () => {
+    console.log('Client disconnected');
+  });
 });
 
-const wss = new WebSocket.Server({ server });
-
-server.listen(5000);
-
-wss.on('connection', (ws) => {
-    ws.on('error', console.error);
-
-    console.log('Client connected');
-  
-    ws.on('message', (message) => {
-      console.log(`Received message: ${message}`);
-  
-      // Handle incoming message
-    });
-  
-    ws.on('close', () => {
-      console.log('Client disconnected');
-    });
-});
+console.log('WebSocket server started on port 8080');
 
 const Mailgun = require('mailgun-js');
 const mailgun = new Mailgun({
