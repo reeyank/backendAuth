@@ -13,30 +13,63 @@ app.use(cors());
 
 const WebSocket = require('ws');
 
-const wss = new WebSocket.Server({ port: 5000 });
+const wss = new WebSocket.Server({ port: 8080 });
 
-wss.on('connection', 
- (ws) => {
-  console.log('Client connected');
+function checkEmail() {
+    wss.on('connection', (ws) => {
+        console.log('Client connected');
 
-  ws.on('message', (message) => {
-    console.log(`Received message: ${message}`); 
+        ws.on('message', async (message) => {
+            try {
+                // Parse the incoming message as JSON
+                const { emailAddress, verificationCode } = JSON.parse(message);
 
-    // Broadcast the message to all connected clients
-    wss.clients.forEach((client) => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(message); 
+                // Find the user based on the email address
+                const userInfo = await prisma.userInfo.findUnique({
+                    where: {
+                        email_address: emailAddress
+                    }
+                });
 
-      }
+                if (!userInfo) {
+                    ws.send(JSON.stringify({ error: "User not found." }));
+                    return;
+                }
+
+                // Find the email verification code for the user
+                const emailVerification = await prisma.email_verification.findUnique({
+                    where: {
+                        id: userInfo.id
+                    }
+                });
+
+                // Verify the code
+                if (verificationCode === emailVerification.code) {
+                    await prisma.email_verification.update({
+                        where: {
+                            email_address: userInfo.email_address
+                        },
+                        data: {
+                            verified: true
+                        }
+                    });
+
+                    ws.send(JSON.stringify({ message: "Email verified." }));
+                } else {
+                    ws.send(JSON.stringify({ error: "Invalid verification code." }));
+                }
+            } catch (error) {
+                console.error('Error processing message:', error);
+                ws.send(JSON.stringify({ error: "Error processing your request." }));
+            }
+        });
+
+        ws.on('close', () => {
+            console.log('Client disconnected');
+        });
     });
-  });
-
-  ws.on('close', () => {
-    console.log('Client disconnected');
-  });
-});
-
-console.log('WebSocket server started on port 8080');
+    console.log('WebSocket server started on port 8080');
+}
 
 const Mailgun = require('mailgun-js');
 const mailgun = new Mailgun({
@@ -56,6 +89,7 @@ function genPass() {
         uppercase: false
     });
 }
+
 
 app.post('/v1/createUser', async (req, res) => {
     if (req.body.first_name == null) {
@@ -110,7 +144,7 @@ app.post('/v1/createUser', async (req, res) => {
 
         var expireTime = new Date(timestamp.duration("+5m")).toISOString();
 
-        if (process.env.EMAIL_VERIFICATION == true) {
+        if (process.env.EMAIL_VERIFICATION == 'true') {
             await prisma.email_verification.create({
                 data: {
                     id: newUser.id,
@@ -118,21 +152,25 @@ app.post('/v1/createUser', async (req, res) => {
                     expireTimestamp: expireTime
                 }
             })
+
+            var data = {
+                from: "reeyan@fantasyfinance.email",
+                to: req.body.email_address,
+                subject: 'One time verification code from ' + process.env.ORG,
+                text: 'The verification code is: ' + code + ". DO NOT SHARE THIS CODE WITH ANYONE. This code will be valid for 5 minutes."
+                };
+            
+            mailgun.messages().send(data, function (err, body) {
+                //If there is an error, render the error page
+                if (err) {
+                    console.log(err);
+                }
+            });
+
+            checkEmail(req.body.email_address);
         }
 
-        var data = {
-            from: "reeyan@fantasyfinance.email",
-            to: req.body.email_address,
-            subject: 'One time verification code from ' + process.env.ORG,
-            text: 'The verification code is: ' + code + ". DO NOT SHARE THIS CODE WITH ANYONE. This code will be valid for 5 minutes."
-            };
-        
-        mailgun.messages().send(data, function (err, body) {
-            //If there is an error, render the error page
-            if (err) {
-                console.log(err);
-            }
-        });
+
     } catch (err) {
         if (err.code == "P2002") {
             res.send({
@@ -287,7 +325,7 @@ app.get('/v1/getNewToken', async (req, res) => {
 
 })
 
-if (process.env.EMAIL_VERIFICATION == "TRUE") {
+if (process.env.EMAIL_VERIFICATION == 'true') {
     app.post('/v1/verifyEmail', async (req, res) => {
         const code = req.body.code;
         const email_address = req.body.email_address;
@@ -341,6 +379,8 @@ if (process.env.EMAIL_VERIFICATION == "TRUE") {
     })
 }
 
-app.listen(3000, () => {
-    console.log("Server running on port 3000");
-});
+// app.listen(3000, () => {
+//     console.log("Server running on port 3000");
+// });
+
+module.exports = app;
