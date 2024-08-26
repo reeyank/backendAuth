@@ -379,8 +379,8 @@ if (process.env.EMAIL_VERIFICATION == 'true') {
     })
 }
 
-// app.listen(3000, () => {
-//     console.log("Server running on port 3000");
-// });
+app.get('*', function(req, res){
+    res.status(404).send('what???');
+});
 
 module.exports = app;
