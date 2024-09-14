@@ -94,7 +94,6 @@ app.get('/', (req, res) => {
     res.send('Hello World!')
 });
 
-
 app.post('/v1/createUser', async (req, res) => {
     if (req.body.first_name == null) {
         res.send({
