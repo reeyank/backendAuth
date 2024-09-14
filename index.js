@@ -90,6 +90,10 @@ function genPass() {
     });
 }
 
+app.get('/', (req, res) => {
+    res.send('Hello World!')
+});
+
 
 app.post('/v1/createUser', async (req, res) => {
     if (req.body.first_name == null) {
@@ -380,7 +384,11 @@ if (process.env.EMAIL_VERIFICATION == 'true') {
 }
 
 app.get('*', function(req, res){
-    res.status(404).send('what???');
+    res.status(404);
+});
+
+app.listen(3000, () => {
+    console.log('Server started on port 3000');
 });
 
 module.exports = app;

@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "kysely-codegen": "^0.15.0",
-    "prisma": "^5.17.0",
+    "prisma": "^5.19.0",
     "tsconfig-paths": "^4.2.0"
   }
 }
